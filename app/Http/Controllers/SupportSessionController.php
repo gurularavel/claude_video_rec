@@ -135,7 +135,7 @@ class SupportSessionController extends Controller
         $request->validate([
             'from'    => 'required|string|in:operator,customer',
             'type'    => 'required|string',
-            'payload' => 'required',
+            'payload' => 'present',
         ]);
 
         broadcast(new WebRTCSignal(

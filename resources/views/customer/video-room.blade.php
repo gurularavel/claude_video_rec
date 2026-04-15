@@ -207,15 +207,21 @@
     </div>
 
     <script type="module">
-        const Echo = window.Echo;
-
+        const Echo    = window.Echo;
         const SESSION = '{{ $sessionUuid }}';
         const CSRF    = document.querySelector('meta[name="csrf-token"]').content;
-        const STUN    = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+        const ICE_CFG = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+            ]
+        };
 
         let pc, localStream, offerReceived = false;
         let videoEnabled = true, audioEnabled = true;
         let readyInterval;
+        // ── Fix 2: queue ICE candidates until offer is received ──
+        let pendingCandidates = [];
 
         const statusBar   = document.getElementById('status-bar');
         const statusText  = document.getElementById('status-text');
@@ -240,19 +246,26 @@
         }
 
         function buildPeerConnection() {
-            pc = new RTCPeerConnection(STUN);
+            pc = new RTCPeerConnection(ICE_CFG);
 
             pc.onicecandidate = e => {
                 if (e.candidate) sendSignal('ice-candidate', e.candidate.toJSON());
             };
 
             pc.ontrack = e => {
-                remoteVideo.srcObject = e.streams[0];
+                if (e.streams && e.streams[0]) {
+                    remoteVideo.srcObject = e.streams[0];
+                } else {
+                    if (!remoteVideo.srcObject) remoteVideo.srcObject = new MediaStream();
+                    remoteVideo.srcObject.addTrack(e.track);
+                }
                 setStatus('connected', 'Bağlantı quruldu');
             };
 
             pc.onconnectionstatechange = () => {
-                if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                if (pc.connectionState === 'connected') {
+                    setStatus('connected', 'Bağlantı quruldu');
+                } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
                     setStatus('ended', 'Zəng bitdi');
                     setTimeout(() => window.close(), 3000);
                 }
@@ -298,24 +311,40 @@
                 .listen('WebRTCSignal', async (e) => {
                     if (e.from !== 'operator') return;
 
+                    // ── Fix 2: handle offer + flush queued ICE ──
                     if (e.type === 'offer' && !offerReceived) {
                         offerReceived = true;
                         clearInterval(readyInterval);
-                        await pc.setRemoteDescription(new RTCSessionDescription(e.payload));
-                        const answer = await pc.createAnswer();
-                        await pc.setLocalDescription(answer);
-                        await sendSignal('answer', { type: answer.type, sdp: answer.sdp });
-                        setStatus('connecting', 'Cavab göndərildi, bağlanılır...');
+                        try {
+                            await pc.setRemoteDescription(new RTCSessionDescription(e.payload));
+                            // Apply any ICE candidates that arrived before the offer
+                            for (const c of pendingCandidates) {
+                                try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch {}
+                            }
+                            pendingCandidates = [];
+                            const answer = await pc.createAnswer();
+                            await pc.setLocalDescription(answer);
+                            await sendSignal('answer', { type: answer.type, sdp: answer.sdp });
+                            setStatus('connecting', 'Cavab göndərildi, bağlanılır...');
+                        } catch (err) {
+                            console.error('offer handling error:', err);
+                        }
                     }
 
+                    // ── Fix 2: queue or apply ICE candidates ──
                     if (e.type === 'ice-candidate' && e.payload) {
-                        try { await pc.addIceCandidate(new RTCIceCandidate(e.payload)); } catch {}
+                        if (pc.remoteDescription) {
+                            try { await pc.addIceCandidate(new RTCIceCandidate(e.payload)); } catch {}
+                        } else {
+                            pendingCandidates.push(e.payload);
+                        }
                     }
                 });
 
-            await sendSignal('customer-ready', {});
+            // Send customer-ready and retry until offer arrives
+            await sendSignal('customer-ready', { ready: true });
             readyInterval = setInterval(async () => {
-                if (!offerReceived) await sendSignal('customer-ready', {});
+                if (!offerReceived) await sendSignal('customer-ready', { ready: true });
             }, 3000);
 
             setStatus('connecting', 'Hazır — operator bağlanmasını gözləyir...');

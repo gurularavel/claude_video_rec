@@ -465,27 +465,35 @@
 </div>
 
 <script type="module">
-    const Echo  = window.Echo;
+    const Echo    = window.Echo;
     const SESSION = '{{ $sessionUuid }}';
     const CSRF    = document.querySelector('meta[name="csrf-token"]').content;
-    const STUN    = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    const ICE_CFG = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+        ]
+    };
 
     let pc, localStream, recorder, recordingChunks = [], callStartTime;
     let videoEnabled = true, audioEnabled = true;
     let timerInterval;
+    // ── Fix 1: guard against multiple offers ──
+    let offerSent = false;
+    // ── Fix 2: queue ICE candidates until remote desc is set ──
+    let pendingCandidates = [];
 
-    const localVideo    = document.getElementById('local-video');
-    const remoteVideo   = document.getElementById('remote-video');
-    const connStatus    = document.getElementById('conn-status');
-    const connText      = document.getElementById('conn-text');
-    const recIndicator  = document.getElementById('rec-indicator');
-    const sidebarTimer  = document.getElementById('sidebar-timer');
-    const timerOverlay  = document.getElementById('timer-overlay');
-    const btnVideo      = document.getElementById('btn-video');
-    const btnAudio      = document.getElementById('btn-audio');
-    const btnEnd        = document.getElementById('btn-end');
+    const localVideo   = document.getElementById('local-video');
+    const remoteVideo  = document.getElementById('remote-video');
+    const connStatus   = document.getElementById('conn-status');
+    const connText     = document.getElementById('conn-text');
+    const recIndicator = document.getElementById('rec-indicator');
+    const sidebarTimer = document.getElementById('sidebar-timer');
+    const timerOverlay = document.getElementById('timer-overlay');
+    const btnVideo     = document.getElementById('btn-video');
+    const btnAudio     = document.getElementById('btn-audio');
+    const btnEnd       = document.getElementById('btn-end');
 
-    // ── Helpers ──
     function setStatus(state, text) {
         connStatus.className = 'conn-status ' + state;
         connText.textContent = text;
@@ -505,19 +513,27 @@
 
     // ── Peer connection ──
     function buildPeerConnection() {
-        pc = new RTCPeerConnection(STUN);
+        pc = new RTCPeerConnection(ICE_CFG);
 
         pc.onicecandidate = e => {
             if (e.candidate) sendSignal('ice-candidate', e.candidate.toJSON());
         };
 
         pc.ontrack = e => {
-            remoteVideo.srcObject = e.streams[0];
+            if (e.streams && e.streams[0]) {
+                remoteVideo.srcObject = e.streams[0];
+            } else {
+                // fallback: attach track directly
+                if (!remoteVideo.srcObject) remoteVideo.srcObject = new MediaStream();
+                remoteVideo.srcObject.addTrack(e.track);
+            }
             setStatus('connected', 'Bağlantı quruldu');
         };
 
         pc.onconnectionstatechange = () => {
-            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+            if (pc.connectionState === 'connected') {
+                setStatus('connected', 'Bağlantı quruldu');
+            } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
                 setStatus('disconnected', 'Müştəri ayrıldı');
             }
         };
@@ -525,11 +541,28 @@
         localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
     }
 
+    // ── Fix 1: only create offer once ──
     async function createOffer() {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        await sendSignal('offer', { type: offer.type, sdp: offer.sdp });
-        setStatus('connecting', 'Offer göndərildi...');
+        if (offerSent) return;
+        if (pc.signalingState !== 'stable') return;
+        offerSent = true;
+        try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            await sendSignal('offer', { type: offer.type, sdp: offer.sdp });
+            setStatus('connecting', 'Offer göndərildi, cavab gözlənilir...');
+        } catch (err) {
+            offerSent = false; // allow retry on error
+            console.error('createOffer error:', err);
+        }
+    }
+
+    // ── Fix 2: apply queued ICE candidates after remote desc is set ──
+    async function applyPendingCandidates() {
+        for (const c of pendingCandidates) {
+            try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch {}
+        }
+        pendingCandidates = [];
     }
 
     // ── Recording ──
@@ -593,16 +626,11 @@
     btnEnd.addEventListener('click', async () => {
         if (!confirm('Zəngi bitirmək istədiyinizə əminsiniz?')) return;
         btnEnd.disabled = true;
-        btnEnd.innerHTML = `
-            <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-            </svg> Yüklənir...`;
+        btnEnd.innerHTML = `<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Yüklənir...`;
         clearInterval(timerInterval);
         recIndicator.style.display = 'none';
-
         await post(`/support/${SESSION}/end-call`);
         await stopAndUploadRecording();
-
         if (pc) pc.close();
         localStream?.getTracks().forEach(t => t.stop());
         window.location.href = '/dashboard';
@@ -614,7 +642,7 @@
             localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             localVideo.srcObject = localStream;
         } catch (err) {
-            setStatus('disconnected', 'Kamera/Mikrofona icazə verilmədi');
+            setStatus('disconnected', 'Kamera/Mikrofona icazə verilmədi: ' + err.message);
             return;
         }
 
@@ -625,18 +653,26 @@
             .listen('WebRTCSignal', async (e) => {
                 if (e.from !== 'customer') return;
 
+                // ── Fix 1: guard duplicate offers ──
                 if (e.type === 'customer-ready') {
                     await createOffer();
                 }
 
+                // ── Fix 2: queue-aware answer handling ──
                 if (e.type === 'answer') {
                     if (pc.signalingState === 'have-local-offer') {
                         await pc.setRemoteDescription(new RTCSessionDescription(e.payload));
+                        await applyPendingCandidates();
                     }
                 }
 
+                // ── Fix 2: queue if remote desc not yet set ──
                 if (e.type === 'ice-candidate' && e.payload) {
-                    try { await pc.addIceCandidate(new RTCIceCandidate(e.payload)); } catch {}
+                    if (pc.remoteDescription) {
+                        try { await pc.addIceCandidate(new RTCIceCandidate(e.payload)); } catch {}
+                    } else {
+                        pendingCandidates.push(e.payload);
+                    }
                 }
             });
 
