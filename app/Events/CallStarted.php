@@ -5,26 +5,19 @@ namespace App\Events;
 use App\Models\SupportSession;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class CallStarted implements ShouldBroadcast
+class CallStarted implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public SupportSession $session;
-    public string $roomName;
-    public string $roomSid;
 
-    /**
-     * Create a new event instance.
-     */
-    public function __construct(SupportSession $session, string $roomName, string $roomSid)
+    public function __construct(SupportSession $session)
     {
         $this->session = $session;
-        $this->roomName = $roomName;
-        $this->roomSid = $roomSid;
     }
 
     /**
@@ -46,9 +39,7 @@ class CallStarted implements ShouldBroadcast
     {
         return [
             'session_uuid' => $this->session->uuid,
-            'room_name' => $this->roomName,
-            'room_sid' => $this->roomSid,
-            'timestamp' => now()->toIso8601String(),
+            'timestamp'    => now()->toIso8601String(),
         ];
     }
 }

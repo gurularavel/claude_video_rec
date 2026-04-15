@@ -1,24 +1,23 @@
 <?php
 
 use App\Http\Controllers\SupportSessionController;
-use App\Http\Controllers\WebhookController;
+use App\Models\Recording;
+use App\Models\SupportSession;
 use Illuminate\Support\Facades\Route;
 
-// Public routes
 Route::get('/', function () {
     return redirect()->route('login');
 });
 
-// Authentication routes
-Auth::routes();
+// Disable registration
+Auth::routes(['register' => false]);
 
-// Operator routes (protected by auth middleware)
+// Operator routes (auth required)
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', function () {
         return view('operator.dashboard');
     })->name('dashboard');
 
-    // Support session management
     Route::post('/support/generate', [SupportSessionController::class, 'generate'])
         ->name('support.generate');
 
@@ -31,16 +30,37 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/support/{session}/end-call', [SupportSessionController::class, 'endCall'])
         ->name('support.end-call');
 
-    Route::post('/support/{session}/token', [SupportSessionController::class, 'getToken'])
-        ->name('support.token');
+    // WebRTC signaling from operator side
+    Route::post('/support/{session}/signal', [SupportSessionController::class, 'signal'])
+        ->name('support.signal');
+
+    // Recording upload (operator's browser sends the blob)
+    Route::post('/support/{session}/recording', [SupportSessionController::class, 'uploadRecording'])
+        ->name('support.upload-recording');
 
     Route::get('/support/{session}/status', [SupportSessionController::class, 'status'])
         ->name('support.status');
 
-    // Video room view
-    Route::get('/support/{session}/video', function ($session) {
-        return view('operator.video-room', ['sessionUuid' => $session]);
+    Route::get('/support/{session}/video', function (SupportSession $session) {
+        return view('operator.video-room', [
+            'sessionUuid'    => $session->uuid,
+            'session'        => $session,
+        ]);
     })->name('support.video-room');
+
+    // Superadmin: recordings overview
+    Route::get('/admin/recordings', function () {
+        if (!auth()->user()->is_superadmin) {
+            abort(403);
+        }
+
+        $sessions = SupportSession::with(['operator', 'acceptedBy', 'recordings'])
+            ->whereHas('recordings')
+            ->latest()
+            ->paginate(20);
+
+        return view('admin.recordings', compact('sessions'));
+    })->name('admin.recordings');
 });
 
 // Customer routes (no auth required)
@@ -51,22 +71,12 @@ Route::get('/support/call/{session}', function ($session) {
 Route::post('/support/call/{session}/join', [SupportSessionController::class, 'joinWaitingRoom'])
     ->name('support.join-waiting-room');
 
-Route::post('/support/call/{session}/token', [SupportSessionController::class, 'getToken'])
-    ->name('support.customer-token');
+// WebRTC signaling from customer side (no auth)
+Route::post('/support/call/{session}/signal', [SupportSessionController::class, 'signal'])
+    ->name('support.customer-signal');
 
 Route::get('/support/call/{session}/video', function ($session) {
     return view('customer.video-room', ['sessionUuid' => $session]);
 })->name('support.customer-video-room');
-
-// Webhook routes (no auth/CSRF required)
-Route::post('/webhooks/twilio/room-status', [WebhookController::class, 'roomStatus'])
-    ->name('webhooks.twilio.room-status')
-    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
-
-Route::post('/webhooks/twilio/recording-status', [WebhookController::class, 'recordingStatus'])
-    ->name('webhooks.twilio.recording-status')
-    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
-
-Auth::routes();
 
 Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');

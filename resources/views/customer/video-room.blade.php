@@ -1,142 +1,325 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="az">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Video Support</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Video Dəstək</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    @vite(['resources/js/app.js'])
     <style>
-        #video-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 10px;
-            height: calc(100vh - 150px);
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:      #070d18;
+            --surface: #0f1924;
+            --border:  rgba(6,182,212,.1);
+            --cyan:    #06b6d4;
+            --success: #10b981;
+            --danger:  #ef4444;
+            --warning: #f59e0b;
+            --text:    #e2e8f0;
+            --muted:   #64748b;
         }
-        .participant {
-            background: #000;
-            border-radius: 8px;
+
+        html, body {
+            height: 100%;
+            background: var(--bg);
+            font-family: 'Inter', sans-serif;
+            color: var(--text);
             overflow: hidden;
-            position: relative;
         }
-        .participant video {
+
+        .video-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            padding: 6px;
+            height: calc(100vh - 80px);
+        }
+
+        .video-box {
+            position: relative;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,.04);
+        }
+
+        .video-box video {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            display: block;
         }
-        .participant-name {
+
+        .video-label {
             position: absolute;
-            bottom: 10px;
-            left: 10px;
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 4px;
+            bottom: 14px;
+            left: 14px;
+            background: rgba(0,0,0,.68);
+            backdrop-filter: blur(8px);
+            color: #fff;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            border: 1px solid rgba(255,255,255,.1);
+        }
+
+        /* Operator box gets a subtle teal tint */
+        .video-box.remote-box {
+            border-color: rgba(6,182,212,.15);
+        }
+
+        /* ─── Status bar ─── */
+        .status-bar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            z-index: 100;
+            transition: background 0.4s, color 0.4s;
+        }
+
+        .status-bar.connecting {
+            background: rgba(245,158,11,.12);
+            color: var(--warning);
+            border-bottom: 1px solid rgba(245,158,11,.2);
+        }
+
+        .status-bar.connected {
+            background: rgba(16,185,129,.1);
+            color: var(--success);
+            border-bottom: 1px solid rgba(16,185,129,.2);
+        }
+
+        .status-bar.ended {
+            background: rgba(100,116,139,.1);
+            color: var(--muted);
+            border-bottom: 1px solid rgba(100,116,139,.2);
+        }
+
+        .status-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .status-bar.connected .status-dot {
+            animation: pulse-s 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-s {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* ─── Content wrapper (offset for status bar) ─── */
+        .content-wrap {
+            padding-top: 36px;
+            height: 100vh;
+        }
+
+        /* ─── Bottom controls ─── */
+        .controls-bar {
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 0 1rem;
+        }
+
+        .ctrl-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            background: rgba(255,255,255,.08);
+            border: 1px solid rgba(255,255,255,.1);
+            border-radius: 10px;
+            padding: 10px 20px;
+            color: var(--text);
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.72rem;
+            font-weight: 500;
+            transition: background 0.2s, border-color 0.2s;
+            min-width: 70px;
+        }
+
+        .ctrl-btn svg { width: 20px; height: 20px; }
+        .ctrl-btn:hover { background: rgba(255,255,255,.14); }
+
+        .ctrl-btn.active {
+            background: rgba(6,182,212,.1);
+            border-color: rgba(6,182,212,.3);
+            color: var(--cyan);
+        }
+
+        .ctrl-btn.muted {
+            background: rgba(239,68,68,.1);
+            border-color: rgba(239,68,68,.3);
+            color: var(--danger);
         }
     </style>
 </head>
 <body>
-    <div class="container-fluid p-4">
-        <div class="alert alert-success">
-            <strong>Connected!</strong> You're now in a video call with support.
-        </div>
-
-        <div id="video-container"></div>
+    <!-- Status bar -->
+    <div id="status-bar" class="status-bar connecting">
+        <div class="status-dot"></div>
+        <span id="status-text">Operator gözlənilir...</span>
     </div>
 
-    <script src="https://media.twiliocdn.com/sdk/js/video/releases/2.27.0/twilio-video.min.js"></script>
-    <script>
-        const sessionUuid = '{{ $sessionUuid }}';
-        let room;
+    <div class="content-wrap">
+        <div class="video-grid">
+            <div class="video-box remote-box">
+                <video id="remote-video" autoplay playsinline></video>
+                <div class="video-label">Operator</div>
+            </div>
+            <div class="video-box">
+                <video id="local-video" autoplay muted playsinline></video>
+                <div class="video-label">Siz</div>
+            </div>
+        </div>
 
-        async function initializeCall() {
-            try {
-                const response = await fetch(`/support/call/${sessionUuid}/token`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                    },
-                    body: JSON.stringify({
-                        identity: 'customer-' + Date.now()
-                    })
-                });
+        <div class="controls-bar">
+            <button id="btn-video" class="ctrl-btn active">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 10l4.553-2.276A1 1 0 0 1 21 8.67v6.66a1 1 0 0 1-1.447.894L15 14M3 8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8z"/></svg>
+                Video
+            </button>
+            <button id="btn-audio" class="ctrl-btn active">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                Mikrofon
+            </button>
+        </div>
+    </div>
 
-                const data = await response.json();
+    <script type="module">
+        const Echo = window.Echo;
 
-                if (!data.success) {
-                    alert('Failed to get video token');
-                    return;
+        const SESSION = '{{ $sessionUuid }}';
+        const CSRF    = document.querySelector('meta[name="csrf-token"]').content;
+        const STUN    = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+        let pc, localStream, offerReceived = false;
+        let videoEnabled = true, audioEnabled = true;
+        let readyInterval;
+
+        const statusBar   = document.getElementById('status-bar');
+        const statusText  = document.getElementById('status-text');
+        const localVideo  = document.getElementById('local-video');
+        const remoteVideo = document.getElementById('remote-video');
+
+        function setStatus(state, text) {
+            statusBar.className = 'status-bar ' + state;
+            statusText.textContent = text;
+        }
+
+        async function post(url, body = {}) {
+            return fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+                body: JSON.stringify(body),
+            }).then(r => r.json());
+        }
+
+        async function sendSignal(type, payload) {
+            return post(`/support/call/${SESSION}/signal`, { from: 'customer', type, payload });
+        }
+
+        function buildPeerConnection() {
+            pc = new RTCPeerConnection(STUN);
+
+            pc.onicecandidate = e => {
+                if (e.candidate) sendSignal('ice-candidate', e.candidate.toJSON());
+            };
+
+            pc.ontrack = e => {
+                remoteVideo.srcObject = e.streams[0];
+                setStatus('connected', 'Bağlantı quruldu');
+            };
+
+            pc.onconnectionstatechange = () => {
+                if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                    setStatus('ended', 'Zəng bitdi');
+                    setTimeout(() => window.close(), 3000);
                 }
+            };
 
-                room = await Twilio.Video.connect(data.token, {
-                    name: data.room_name,
-                    audio: true,
-                    video: { width: 640 }
+            localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+        }
+
+        document.getElementById('btn-video').addEventListener('click', () => {
+            videoEnabled = !videoEnabled;
+            localStream.getVideoTracks().forEach(t => t.enabled = videoEnabled);
+            document.getElementById('btn-video').classList.toggle('active', videoEnabled);
+            document.getElementById('btn-video').classList.toggle('muted', !videoEnabled);
+        });
+
+        document.getElementById('btn-audio').addEventListener('click', () => {
+            audioEnabled = !audioEnabled;
+            localStream.getAudioTracks().forEach(t => t.enabled = audioEnabled);
+            document.getElementById('btn-audio').classList.toggle('active', audioEnabled);
+            document.getElementById('btn-audio').classList.toggle('muted', !audioEnabled);
+        });
+
+        (async () => {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                localVideo.srcObject = localStream;
+            } catch (err) {
+                setStatus('ended', 'Kamera/Mikrofona icazə verilmədi: ' + err.message);
+                return;
+            }
+
+            buildPeerConnection();
+
+            Echo.channel(`support-session.${SESSION}`)
+                .listen('CallEnded', () => {
+                    setStatus('ended', 'Zəng operator tərəfindən bitirildi');
+                    localStream?.getTracks().forEach(t => t.stop());
+                    if (pc) pc.close();
+                    setTimeout(() => window.close(), 3000);
                 });
 
-                console.log('Connected to room:', room.name);
+            Echo.channel(`call-signal.${SESSION}`)
+                .listen('WebRTCSignal', async (e) => {
+                    if (e.from !== 'operator') return;
 
-                room.localParticipant.tracks.forEach(publication => {
-                    if (publication.track) {
-                        document.getElementById('video-container').appendChild(
-                            createParticipantDiv(room.localParticipant, publication.track)
-                        );
+                    if (e.type === 'offer' && !offerReceived) {
+                        offerReceived = true;
+                        clearInterval(readyInterval);
+                        await pc.setRemoteDescription(new RTCSessionDescription(e.payload));
+                        const answer = await pc.createAnswer();
+                        await pc.setLocalDescription(answer);
+                        await sendSignal('answer', { type: answer.type, sdp: answer.sdp });
+                        setStatus('connecting', 'Cavab göndərildi, bağlanılır...');
+                    }
+
+                    if (e.type === 'ice-candidate' && e.payload) {
+                        try { await pc.addIceCandidate(new RTCIceCandidate(e.payload)); } catch {}
                     }
                 });
 
-                room.participants.forEach(participantConnected);
-                room.on('participantConnected', participantConnected);
-                room.on('participantDisconnected', participantDisconnected);
+            await sendSignal('customer-ready', {});
+            readyInterval = setInterval(async () => {
+                if (!offerReceived) await sendSignal('customer-ready', {});
+            }, 3000);
 
-                room.on('disconnected', () => {
-                    alert('Call ended');
-                    window.close();
-                });
-
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Error connecting: ' + error.message);
-            }
-        }
-
-        function participantConnected(participant) {
-            participant.tracks.forEach(publication => {
-                if (publication.isSubscribed) {
-                    trackSubscribed(participant, publication.track);
-                }
-            });
-
-            participant.on('trackSubscribed', track => trackSubscribed(participant, track));
-        }
-
-        function participantDisconnected(participant) {
-            document.getElementById(participant.sid).remove();
-        }
-
-        function trackSubscribed(participant, track) {
-            document.getElementById('video-container').appendChild(
-                createParticipantDiv(participant, track)
-            );
-        }
-
-        function createParticipantDiv(participant, track) {
-            const participantDiv = document.createElement('div');
-            participantDiv.id = participant.sid;
-            participantDiv.className = 'participant';
-
-            const media = track.attach();
-            participantDiv.appendChild(media);
-
-            const nameTag = document.createElement('div');
-            nameTag.className = 'participant-name';
-            nameTag.textContent = participant.identity;
-            participantDiv.appendChild(nameTag);
-
-            return participantDiv;
-        }
-
-        window.addEventListener('load', initializeCall);
+            setStatus('connecting', 'Hazır — operator bağlanmasını gözləyir...');
+        })();
     </script>
 </body>
 </html>

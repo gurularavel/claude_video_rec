@@ -2,8 +2,9 @@
 
 namespace App\Livewire\Operator;
 
-use App\Events\CustomerWaiting;
+use App\Events\OperatorAccepted;
 use App\Models\SupportSession;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -12,6 +13,7 @@ class Dashboard extends Component
     public $generatedLink = '';
     public $customerName = '';
     public $customerEmail = '';
+    public $customerPhone = '';
     public $waitingSessions = [];
     public $showLinkModal = false;
 
@@ -27,12 +29,14 @@ class Dashboard extends Component
             'status' => 'pending',
             'customer_name' => $this->customerName,
             'customer_email' => $this->customerEmail,
+            'customer_phone' => $this->customerPhone,
         ]);
 
         $this->generatedLink = route('support.waiting-room', $session->uuid);
         $this->showLinkModal = true;
         $this->customerName = '';
         $this->customerEmail = '';
+        $this->customerPhone = '';
 
         $this->dispatch('link-generated', link: $this->generatedLink);
     }
@@ -70,9 +74,36 @@ class Dashboard extends Component
             ->toArray();
     }
 
-    public function acceptCall($sessionId)
+    public function acceptCall($sessionUuid)
     {
-        $this->redirect(route('support.video-room', $sessionId));
+        $accepted = DB::transaction(function () use ($sessionUuid) {
+            $session = SupportSession::where('uuid', $sessionUuid)
+                ->where('status', 'waiting')
+                ->whereNull('accepted_by')
+                ->lockForUpdate()
+                ->first();
+
+            if (!$session) {
+                return false;
+            }
+
+            $session->update([
+                'accepted_by'        => auth()->id(),
+                'status'             => 'active',
+                'operator_joined_at' => now(),
+            ]);
+
+            return $session;
+        });
+
+        if (!$accepted) {
+            session()->flash('error', 'Bu zəng artıq başqa operator tərəfindən qəbul edilib.');
+            return;
+        }
+
+        broadcast(new OperatorAccepted($accepted))->toOthers();
+
+        $this->redirect(route('support.video-room', $accepted->uuid));
     }
 
     public function render()

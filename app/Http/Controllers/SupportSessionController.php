@@ -6,43 +6,38 @@ use App\Events\CallEnded;
 use App\Events\CallStarted;
 use App\Events\CustomerWaiting;
 use App\Events\OperatorAccepted;
+use App\Events\WebRTCSignal;
+use App\Models\Recording;
 use App\Models\SupportSession;
-use App\Services\TwilioService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class SupportSessionController extends Controller
 {
-    protected TwilioService $twilioService;
-
-    public function __construct(TwilioService $twilioService)
-    {
-        $this->twilioService = $twilioService;
-    }
-
     /**
      * Generate a new support link
      */
     public function generate(Request $request): JsonResponse
     {
         $request->validate([
-            'customer_name' => 'nullable|string|max:255',
+            'customer_name'  => 'nullable|string|max:255',
             'customer_email' => 'nullable|email|max:255',
+            'customer_phone' => 'nullable|string|max:50',
         ]);
 
         $session = SupportSession::create([
-            'operator_id' => auth()->id(),
-            'status' => 'pending',
-            'customer_name' => $request->input('customer_name'),
+            'operator_id'    => auth()->id(),
+            'status'         => 'pending',
+            'customer_name'  => $request->input('customer_name'),
             'customer_email' => $request->input('customer_email'),
+            'customer_phone' => $request->input('customer_phone'),
         ]);
 
         return response()->json([
             'success' => true,
             'session' => $session,
-            'link' => route('support.waiting-room', $session->uuid),
+            'link'    => route('support.waiting-room', $session->uuid),
         ]);
     }
 
@@ -58,17 +53,15 @@ class SupportSessionController extends Controller
             ], 400);
         }
 
-        // Update session status to waiting
         $session->update([
-            'status' => 'waiting',
+            'status'             => 'waiting',
             'customer_joined_at' => now(),
         ]);
 
-        // Broadcast to all available operators
         broadcast(new CustomerWaiting($session))->toOthers();
 
         return response()->json([
-            'success' => true,
+            'success'      => true,
             'session_uuid' => $session->uuid,
         ]);
     }
@@ -78,9 +71,7 @@ class SupportSessionController extends Controller
      */
     public function accept(SupportSession $session): JsonResponse
     {
-        // Use database transaction to prevent race conditions
         $accepted = DB::transaction(function () use ($session) {
-            // Reload session with lock
             $session = SupportSession::where('id', $session->id)
                 ->where('status', 'waiting')
                 ->whereNull('accepted_by')
@@ -91,11 +82,10 @@ class SupportSessionController extends Controller
                 return false;
             }
 
-            // Update session with operator
             $session->update([
-                'accepted_by' => auth()->id(),
-                'status' => 'active',
-                'operator_joined_at' => now(),
+                'accepted_by'         => auth()->id(),
+                'status'              => 'active',
+                'operator_joined_at'  => now(),
             ]);
 
             return $session;
@@ -108,131 +98,106 @@ class SupportSessionController extends Controller
             ], 409);
         }
 
-        // Broadcast that operator accepted
         broadcast(new OperatorAccepted($accepted))->toOthers();
 
         return response()->json([
-            'success' => true,
-            'session' => $accepted,
+            'success'      => true,
+            'session'      => $accepted,
             'redirect_url' => route('support.video-room', $accepted->uuid),
         ]);
     }
 
     /**
-     * Start video call (creates Twilio room)
+     * Start video call — marks started_at and notifies customer
      */
     public function startCall(SupportSession $session): JsonResponse
     {
         if ($session->status !== 'active') {
             return response()->json([
                 'success' => false,
-                'message' => 'Cannot start call - invalid session status.',
+                'message' => 'Cannot start call — invalid session status.',
             ], 400);
         }
 
-        // Create Twilio room
-        $roomName = 'support-' . $session->uuid;
+        $session->update(['started_at' => now()]);
 
-        try {
-            $room = $this->twilioService->createRoom($roomName);
+        broadcast(new CallStarted($session))->toOthers();
 
-            // Update session with room details
-            $session->update([
-                'twilio_room_sid' => $room->sid,
-                'twilio_room_name' => $room->uniqueName,
-                'started_at' => now(),
-            ]);
-
-            // Broadcast call started
-            broadcast(new CallStarted($session, $room->uniqueName, $room->sid))->toOthers();
-
-            return response()->json([
-                'success' => true,
-                'room_name' => $room->uniqueName,
-                'room_sid' => $room->sid,
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create video room: ' . $e->getMessage(),
-            ], 500);
-        }
+        return response()->json(['success' => true]);
     }
 
     /**
-     * Get access token for video call
+     * Relay a WebRTC signaling message (offer / answer / ice-candidate / customer-ready)
+     * Called by both operator (auth) and customer (public) routes.
      */
-    public function getToken(SupportSession $session, Request $request): JsonResponse
+    public function signal(SupportSession $session, Request $request): JsonResponse
     {
         $request->validate([
-            'identity' => 'required|string',
+            'from'    => 'required|string|in:operator,customer',
+            'type'    => 'required|string',
+            'payload' => 'required',
         ]);
 
-        if (!$session->twilio_room_name) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Video room not created yet.',
-            ], 400);
-        }
+        broadcast(new WebRTCSignal(
+            $session,
+            $request->input('from'),
+            $request->input('type'),
+            $request->input('payload')
+        ));
 
-        try {
-            $token = $this->twilioService->generateToken(
-                $request->input('identity'),
-                $session->twilio_room_name
-            );
-
-            return response()->json([
-                'success' => true,
-                'token' => $token,
-                'room_name' => $session->twilio_room_name,
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to generate token: ' . $e->getMessage(),
-            ], 500);
-        }
+        return response()->json(['success' => true]);
     }
 
     /**
-     * End the call
+     * End the call — updates session and notifies participants
      */
     public function endCall(SupportSession $session): JsonResponse
     {
-        if (!$session->twilio_room_sid) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No active call to end.',
-            ], 400);
-        }
+        $duration = $session->started_at
+            ? now()->diffInSeconds($session->started_at)
+            : 0;
 
-        try {
-            // Complete the Twilio room
-            $this->twilioService->completeRoom($session->twilio_room_sid);
+        $session->update([
+            'status'           => 'completed',
+            'ended_at'         => now(),
+            'duration_seconds' => $duration,
+        ]);
 
-            // Calculate duration
-            $duration = $session->started_at ? now()->diffInSeconds($session->started_at) : 0;
+        broadcast(new CallEnded($session))->toOthers();
 
-            // Update session
-            $session->update([
-                'status' => 'completed',
-                'ended_at' => now(),
-                'duration_seconds' => $duration,
-            ]);
+        return response()->json([
+            'success'          => true,
+            'duration_seconds' => $duration,
+        ]);
+    }
 
-            // Broadcast call ended
-            broadcast(new CallEnded($session))->toOthers();
+    /**
+     * Upload recorded video from operator's browser (MediaRecorder blob)
+     */
+    public function uploadRecording(SupportSession $session, Request $request): JsonResponse
+    {
+        $request->validate([
+            'recording' => 'required|file',
+            'duration'  => 'nullable|integer',
+        ]);
 
-            return response()->json([
-                'success' => true,
-                'duration_seconds' => $duration,
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to end call: ' . $e->getMessage(),
-            ], 500);
-        }
+        $file     = $request->file('recording');
+        $fileName = 'recording.webm';
+        $path     = $file->storeAs("recordings/{$session->uuid}", $fileName, 'public');
+
+        Recording::create([
+            'support_session_id'    => $session->id,
+            'file_name'             => $fileName,
+            'file_path'             => $path,
+            'recording_status'      => 'completed',
+            'duration'              => $request->input('duration'),
+            'size'                  => $file->getSize(),
+            'format'                => 'webm',
+            'recording_started_at'  => $session->started_at,
+            'recording_completed_at'=> now(),
+        ]);
+
+        return response()->json(['success' => true]);
     }
 
     /**

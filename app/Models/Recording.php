@@ -9,8 +9,8 @@ class Recording extends Model
 {
     protected $fillable = [
         'support_session_id',
-        'twilio_recording_sid',
-        'recording_url',
+        'file_name',
+        'file_path',
         'recording_status',
         'duration',
         'size',
