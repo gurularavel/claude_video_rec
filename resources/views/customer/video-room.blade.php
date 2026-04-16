@@ -247,6 +247,14 @@
             return post(`/support/call/${SESSION}/signal`, { from: 'customer', type, payload });
         }
 
+        // Chrome→Firefox SDP uyumsuzluğunu həll edir:
+        // Chrome-un a=ssrc msid sətirləri Firefox tərəfindən rədd edilir
+        function cleanSdp(sdp) {
+            return sdp.split('\n')
+                .filter(line => !(line.startsWith('a=ssrc:') && line.includes(' msid:')))
+                .join('\n');
+        }
+
         function buildPeerConnection() {
             pc = new RTCPeerConnection(ICE_CFG);
 
@@ -401,7 +409,11 @@
                             offerReceived = true;
                             clearInterval(readyInterval);
                             try {
-                                await pc.setRemoteDescription(new RTCSessionDescription(e.payload));
+                                const cleanedSdp = cleanSdp(e.payload.sdp);
+                                await pc.setRemoteDescription(new RTCSessionDescription({
+                                    type: e.payload.type,
+                                    sdp:  cleanedSdp,
+                                }));
                                 for (const c of pendingCandidates) {
                                     try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch {}
                                 }

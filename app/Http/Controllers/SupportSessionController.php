@@ -154,10 +154,11 @@ class SupportSessionController extends Controller
             ->where('direction', "to_{$for}")
             ->where('id', '>', $afterId)
             ->orderBy('id')
-            ->get(['id', 'type', 'payload']);
+            ->get(['id', 'type', 'payload', 'direction']);
 
         $signals = $rows->map(fn($r) => [
             'id'      => $r->id,
+            'from'    => $r->direction === 'to_customer' ? 'operator' : 'customer',
             'type'    => $r->type,
             'payload' => json_decode($r->payload, true),
         ])->values()->all();

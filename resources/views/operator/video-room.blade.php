@@ -513,6 +513,13 @@
         return post(`/support/${SESSION}/signal`, { from: 'operator', type, payload });
     }
 
+    // Chrome→Firefox SDP uyumsuzluğunu həll edir
+    function cleanSdp(sdp) {
+        return sdp.split('\n')
+            .filter(line => !(line.startsWith('a=ssrc:') && line.includes(' msid:')))
+            .join('\n');
+    }
+
     // ── Peer connection ──
     function buildPeerConnection() {
         pc = new RTCPeerConnection(ICE_CFG);
@@ -687,7 +694,11 @@
 
                     if (e.type === 'answer') {
                         if (pc.signalingState === 'have-local-offer') {
-                            await pc.setRemoteDescription(new RTCSessionDescription(e.payload));
+                            const cleanedSdp = cleanSdp(e.payload.sdp);
+                            await pc.setRemoteDescription(new RTCSessionDescription({
+                                type: e.payload.type,
+                                sdp:  cleanedSdp,
+                            }));
                             await applyPendingCandidates();
                         }
                     }
