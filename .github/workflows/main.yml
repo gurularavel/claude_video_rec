@@ -3,7 +3,7 @@ name: Deploy to Server
 on:
   push:
     branches:
-      - claude/video-support-system-01X6ZBEL2ThU71gquors7u41
+      - master
 
 jobs:
   deploy:
