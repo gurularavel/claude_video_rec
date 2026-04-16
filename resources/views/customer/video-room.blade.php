@@ -207,7 +207,6 @@
     </div>
 
     <script type="module">
-        const Echo    = window.Echo;
         const SESSION = '{{ $sessionUuid }}';
         const CSRF    = document.querySelector('meta[name="csrf-token"]').content;
         const ICE_CFG = {
@@ -288,63 +287,144 @@
             document.getElementById('btn-audio').classList.toggle('muted', !audioEnabled);
         });
 
+        // ── Fake camera stream (canvas-based fallback) ──────────────
+        function createFakeStream() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 640; canvas.height = 480;
+            const ctx = canvas.getContext('2d');
+            let hue = 200, tick = 0;
+
+            setInterval(() => {
+                tick++;
+                // Animated gradient background
+                const grad = ctx.createLinearGradient(0, 0, 640, 480);
+                grad.addColorStop(0, `hsl(${hue}, 60%, 12%)`);
+                grad.addColorStop(1, `hsl(${(hue + 40) % 360}, 60%, 18%)`);
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 640, 480);
+                hue = (hue + 0.4) % 360;
+
+                // Pulsing circle
+                const pulse = 60 + Math.sin(tick / 15) * 12;
+                ctx.beginPath();
+                ctx.arc(320, 200, pulse, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(6, 182, 212, ${0.15 + Math.sin(tick / 15) * 0.05})`;
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(6, 182, 212, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Person icon
+                ctx.fillStyle = 'rgba(6, 182, 212, 0.9)';
+                ctx.beginPath();
+                ctx.arc(320, 185, 30, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(320, 248, 44, 30, 0, Math.PI, Math.PI * 2);
+                ctx.fill();
+
+                // Label
+                ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                ctx.font = 'bold 22px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('Müştəri (Test)', 320, 320);
+
+                // Clock
+                ctx.fillStyle = 'rgba(100,116,139,1)';
+                ctx.font = '15px Inter, sans-serif';
+                ctx.fillText(new Date().toLocaleTimeString('az-AZ'), 320, 348);
+
+                // TEST badge
+                ctx.fillStyle = 'rgba(245,158,11,0.85)';
+                ctx.fillRect(264, 362, 112, 28);
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 13px Inter, sans-serif';
+                ctx.fillText('FAKE KAMERA', 320, 382);
+            }, 1000 / 25);
+
+            const videoTrack = canvas.captureStream(25).getVideoTracks()[0];
+
+            // Silent audio track
+            const audioCtx = new AudioContext();
+            const dst = audioCtx.createMediaStreamDestination();
+            const silentTrack = dst.stream.getAudioTracks()[0];
+
+            return new MediaStream([videoTrack, silentTrack]);
+        }
+
         (async () => {
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 localVideo.srcObject = localStream;
             } catch (err) {
-                setStatus('ended', 'Kamera/Mikrofona icazə verilmədi: ' + err.message);
-                return;
+                // Real camera unavailable — use fake stream for testing
+                console.warn('Real camera unavailable, using fake stream:', err.message);
+                localStream = createFakeStream();
+                localVideo.srcObject = localStream;
+                setStatus('connecting', 'Test rejimi (fake kamera)');
             }
 
             buildPeerConnection();
 
-            Echo.channel(`support-session.${SESSION}`)
-                .listen('CallEnded', () => {
-                    setStatus('ended', 'Zəng operator tərəfindən bitirildi');
-                    localStream?.getTracks().forEach(t => t.stop());
-                    if (pc) pc.close();
-                    setTimeout(() => window.close(), 3000);
-                });
+            // ── Polling-based signal receiver (replaces Echo/WebSocket) ──
+            let lastSignalId = 0;
+            async function pollSignals() {
+                try {
+                    const res = await fetch(`/support/call/${SESSION}/poll-signals?for=customer&after=${lastSignalId}`);
+                    const data = await res.json();
+                    for (const e of (data.signals || [])) {
+                        lastSignalId = Math.max(lastSignalId, e.id);
+                        console.log('[MÜŞTƏRİ] Siqnal alındı:', e.from, e.type);
 
-            Echo.channel(`call-signal.${SESSION}`)
-                .listen('WebRTCSignal', async (e) => {
-                    if (e.from !== 'operator') return;
-
-                    // ── Fix 2: handle offer + flush queued ICE ──
-                    if (e.type === 'offer' && !offerReceived) {
-                        offerReceived = true;
-                        clearInterval(readyInterval);
-                        try {
-                            await pc.setRemoteDescription(new RTCSessionDescription(e.payload));
-                            // Apply any ICE candidates that arrived before the offer
-                            for (const c of pendingCandidates) {
-                                try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch {}
+                        if (e.type === 'offer' && !offerReceived) {
+                            offerReceived = true;
+                            clearInterval(readyInterval);
+                            try {
+                                await pc.setRemoteDescription(new RTCSessionDescription(e.payload));
+                                for (const c of pendingCandidates) {
+                                    try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch {}
+                                }
+                                pendingCandidates = [];
+                                const answer = await pc.createAnswer();
+                                await pc.setLocalDescription(answer);
+                                await sendSignal('answer', { type: answer.type, sdp: answer.sdp });
+                                setStatus('connecting', 'Cavab göndərildi, bağlanılır...');
+                            } catch (err) {
+                                console.error('offer handling error:', err);
                             }
-                            pendingCandidates = [];
-                            const answer = await pc.createAnswer();
-                            await pc.setLocalDescription(answer);
-                            await sendSignal('answer', { type: answer.type, sdp: answer.sdp });
-                            setStatus('connecting', 'Cavab göndərildi, bağlanılır...');
-                        } catch (err) {
-                            console.error('offer handling error:', err);
                         }
-                    }
 
-                    // ── Fix 2: queue or apply ICE candidates ──
-                    if (e.type === 'ice-candidate' && e.payload) {
-                        if (pc.remoteDescription) {
-                            try { await pc.addIceCandidate(new RTCIceCandidate(e.payload)); } catch {}
-                        } else {
-                            pendingCandidates.push(e.payload);
+                        if (e.type === 'ice-candidate' && e.payload) {
+                            if (pc.remoteDescription) {
+                                try { await pc.addIceCandidate(new RTCIceCandidate(e.payload)); } catch {}
+                            } else {
+                                pendingCandidates.push(e.payload);
+                            }
+                        }
+
+                        if (e.type === 'call-ended') {
+                            clearInterval(pollInterval);
+                            clearInterval(readyInterval);
+                            setStatus('ended', 'Zəng operator tərəfindən bitirildi');
+                            localStream?.getTracks().forEach(t => t.stop());
+                            if (pc) pc.close();
+                            setTimeout(() => window.close(), 3000);
                         }
                     }
-                });
+                } catch (err) {
+                    console.warn('[MÜŞTƏRİ] poll xətası:', err.message);
+                }
+            }
+            const pollInterval = setInterval(pollSignals, 800);
 
             // Send customer-ready and retry until offer arrives
+            console.log('[MÜŞTƏRİ] customer-ready göndərilir...');
             await sendSignal('customer-ready', { ready: true });
             readyInterval = setInterval(async () => {
-                if (!offerReceived) await sendSignal('customer-ready', { ready: true });
+                if (!offerReceived) {
+                    console.log('[MÜŞTƏRİ] customer-ready retry...');
+                    await sendSignal('customer-ready', { ready: true });
+                }
             }, 3000);
 
             setStatus('connecting', 'Hazır — operator bağlanmasını gözləyir...');

@@ -336,24 +336,27 @@
     </div>
 
     <script type="module">
-        const Echo = window.Echo;
         const sessionUuid = '{{ $sessionUuid }}';
+        const CSRF = document.querySelector('meta[name="csrf-token"]').content;
 
         // Join waiting room
         fetch(`/support/call/${sessionUuid}/join`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            }
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF }
         });
 
-        // Listen for operator acceptance
-        window.Echo.channel(`support-session.${sessionUuid}`)
-            .listen('OperatorAccepted', (e) => {
-                console.log('Operator accepted!', e);
-                window.location.href = `/support/call/${sessionUuid}/video`;
-            });
+        // Poll session status until operator accepts
+        async function pollStatus() {
+            try {
+                const res  = await fetch(`/support/call/${sessionUuid}/status`);
+                const data = await res.json();
+                if (data.session && (data.session.status === 'active' || data.session.status === 'completed')) {
+                    window.location.href = `/support/call/${sessionUuid}/video`;
+                }
+            } catch {}
+        }
+
+        setInterval(pollStatus, 2000);
     </script>
 </body>
 </html>

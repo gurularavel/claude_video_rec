@@ -465,7 +465,6 @@
 </div>
 
 <script type="module">
-    const Echo    = window.Echo;
     const SESSION = '{{ $sessionUuid }}';
     const CSRF    = document.querySelector('meta[name="csrf-token"]').content;
     const ICE_CFG = {
@@ -649,34 +648,46 @@
         buildPeerConnection();
         setStatus('connecting', 'Müştəri gözlənilir...');
 
-        Echo.channel(`call-signal.${SESSION}`)
-            .listen('WebRTCSignal', async (e) => {
-                if (e.from !== 'customer') return;
+        // ── Polling-based signal receiver (replaces Echo/WebSocket) ──
+        let lastSignalId = 0;
+        async function pollSignals() {
+            try {
+                const res = await fetch(`/support/${SESSION}/poll-signals?for=operator&after=${lastSignalId}`, {
+                    headers: { 'X-CSRF-TOKEN': CSRF }
+                });
+                const data = await res.json();
+                for (const e of (data.signals || [])) {
+                    lastSignalId = Math.max(lastSignalId, e.id);
+                    console.log('[OPERATOR] Siqnal alındı:', e.from, e.type);
 
-                // ── Fix 1: guard duplicate offers ──
-                if (e.type === 'customer-ready') {
-                    await createOffer();
-                }
+                    if (e.type === 'customer-ready') {
+                        console.log('[OPERATOR] customer-ready alındı, offer yaradılır...');
+                        await createOffer();
+                    }
 
-                // ── Fix 2: queue-aware answer handling ──
-                if (e.type === 'answer') {
-                    if (pc.signalingState === 'have-local-offer') {
-                        await pc.setRemoteDescription(new RTCSessionDescription(e.payload));
-                        await applyPendingCandidates();
+                    if (e.type === 'answer') {
+                        if (pc.signalingState === 'have-local-offer') {
+                            await pc.setRemoteDescription(new RTCSessionDescription(e.payload));
+                            await applyPendingCandidates();
+                        }
+                    }
+
+                    if (e.type === 'ice-candidate' && e.payload) {
+                        if (pc.remoteDescription) {
+                            try { await pc.addIceCandidate(new RTCIceCandidate(e.payload)); } catch {}
+                        } else {
+                            pendingCandidates.push(e.payload);
+                        }
                     }
                 }
+            } catch (err) {
+                console.warn('[OPERATOR] poll xətası:', err.message);
+            }
+        }
+        const pollInterval = setInterval(pollSignals, 800);
 
-                // ── Fix 2: queue if remote desc not yet set ──
-                if (e.type === 'ice-candidate' && e.payload) {
-                    if (pc.remoteDescription) {
-                        try { await pc.addIceCandidate(new RTCIceCandidate(e.payload)); } catch {}
-                    } else {
-                        pendingCandidates.push(e.payload);
-                    }
-                }
-            });
-
-        await post(`/support/${SESSION}/start-call`);
+        const startRes = await post(`/support/${SESSION}/start-call`);
+        console.log('[OPERATOR] startCall cavabı:', startRes);
         startRecording();
         startTimer();
         setStatus('connecting', 'Müştəri bağlanmasını gözləyir...');

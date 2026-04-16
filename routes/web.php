@@ -34,6 +34,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/support/{session}/signal', [SupportSessionController::class, 'signal'])
         ->name('support.signal');
 
+    Route::get('/support/{session}/poll-signals', [SupportSessionController::class, 'pollSignals'])
+        ->name('support.poll-signals');
+
     // Recording upload (operator's browser sends the blob)
     Route::post('/support/{session}/recording', [SupportSessionController::class, 'uploadRecording'])
         ->name('support.upload-recording');
@@ -75,8 +78,14 @@ Route::post('/support/call/{session}/join', [SupportSessionController::class, 'j
 Route::post('/support/call/{session}/signal', [SupportSessionController::class, 'signal'])
     ->name('support.customer-signal');
 
+Route::get('/support/call/{session}/poll-signals', [SupportSessionController::class, 'pollSignals'])
+    ->name('support.customer-poll-signals');
+
 Route::get('/support/call/{session}/video', function ($session) {
     return view('customer.video-room', ['sessionUuid' => $session]);
 })->name('support.customer-video-room');
+
+Route::get('/support/call/{session}/status', [SupportSessionController::class, 'status'])
+    ->name('support.customer-status');
 
 Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');

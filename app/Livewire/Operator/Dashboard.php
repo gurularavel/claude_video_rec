@@ -5,9 +5,10 @@ namespace App\Livewire\Operator;
 use App\Events\OperatorAccepted;
 use App\Models\SupportSession;
 use Illuminate\Support\Facades\DB;
-use Livewire\Attributes\On;
+use Livewire\Attributes\Polling;
 use Livewire\Component;
 
+#[Polling(3000)]
 class Dashboard extends Component
 {
     public $generatedLink = '';
@@ -52,19 +53,6 @@ class Dashboard extends Component
         $this->dispatch('copy-to-clipboard', text: $this->generatedLink);
     }
 
-    #[On('echo:operators,CustomerWaiting')]
-    public function customerWaiting($data)
-    {
-        $this->loadWaitingSessions();
-        $this->dispatch('customer-waiting', data: $data);
-    }
-
-    #[On('echo:operators,OperatorAccepted')]
-    public function operatorAccepted($data)
-    {
-        $this->loadWaitingSessions();
-    }
-
     public function loadWaitingSessions()
     {
         $this->waitingSessions = SupportSession::where('status', 'waiting')
@@ -101,13 +89,14 @@ class Dashboard extends Component
             return;
         }
 
-        broadcast(new OperatorAccepted($accepted))->toOthers();
+        broadcast(new OperatorAccepted($accepted));
 
         $this->redirect(route('support.video-room', $accepted->uuid));
     }
 
     public function render()
     {
+        $this->loadWaitingSessions();
         return view('livewire.operator.dashboard');
     }
 }

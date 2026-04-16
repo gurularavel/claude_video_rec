@@ -11,6 +11,7 @@ use App\Models\Recording;
 use App\Models\SupportSession;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class SupportSessionController extends Controller
@@ -58,7 +59,7 @@ class SupportSessionController extends Controller
             'customer_joined_at' => now(),
         ]);
 
-        broadcast(new CustomerWaiting($session))->toOthers();
+        broadcast(new CustomerWaiting($session));
 
         return response()->json([
             'success'      => true,
@@ -98,7 +99,7 @@ class SupportSessionController extends Controller
             ], 409);
         }
 
-        broadcast(new OperatorAccepted($accepted))->toOthers();
+        broadcast(new OperatorAccepted($accepted));
 
         return response()->json([
             'success'      => true,
@@ -121,13 +122,13 @@ class SupportSessionController extends Controller
 
         $session->update(['started_at' => now()]);
 
-        broadcast(new CallStarted($session))->toOthers();
+        broadcast(new CallStarted($session));
 
         return response()->json(['success' => true]);
     }
 
     /**
-     * Relay a WebRTC signaling message (offer / answer / ice-candidate / customer-ready)
+     * Relay a WebRTC signaling message via cache-based polling.
      * Called by both operator (auth) and customer (public) routes.
      */
     public function signal(SupportSession $session, Request $request): JsonResponse
@@ -138,14 +139,36 @@ class SupportSessionController extends Controller
             'payload' => 'present',
         ]);
 
-        broadcast(new WebRTCSignal(
-            $session,
-            $request->input('from'),
-            $request->input('type'),
-            $request->input('payload')
-        ));
+        $from    = $request->input('from');
+        $target  = $from === 'operator' ? 'customer' : 'operator';
+        $cacheKey = "webrtc.{$session->uuid}.to_{$target}";
+
+        $signals   = Cache::get($cacheKey, []);
+        $signals[] = [
+            'id'      => count($signals) + 1,
+            'from'    => $from,
+            'type'    => $request->input('type'),
+            'payload' => $request->input('payload'),
+        ];
+        Cache::put($cacheKey, $signals, 3600);
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Poll for new WebRTC signals.
+     */
+    public function pollSignals(SupportSession $session, Request $request): JsonResponse
+    {
+        $for     = $request->query('for');   // 'operator' or 'customer'
+        $afterId = (int) $request->query('after', 0);
+
+        $cacheKey = "webrtc.{$session->uuid}.to_{$for}";
+        $signals  = Cache::get($cacheKey, []);
+
+        $newSignals = array_values(array_filter($signals, fn($s) => $s['id'] > $afterId));
+
+        return response()->json(['signals' => $newSignals]);
     }
 
     /**
@@ -163,7 +186,18 @@ class SupportSessionController extends Controller
             'duration_seconds' => $duration,
         ]);
 
-        broadcast(new CallEnded($session))->toOthers();
+        // Notify customer via polling signal
+        $cacheKey = "webrtc.{$session->uuid}.to_customer";
+        $signals  = Cache::get($cacheKey, []);
+        $signals[] = [
+            'id'      => count($signals) + 1,
+            'from'    => 'operator',
+            'type'    => 'call-ended',
+            'payload' => null,
+        ];
+        Cache::put($cacheKey, $signals, 3600);
+
+        broadcast(new CallEnded($session));
 
         return response()->json([
             'success'          => true,
