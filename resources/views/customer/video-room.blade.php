@@ -248,10 +248,10 @@
         }
 
         // Chrome→Firefox SDP uyumsuzluğunu həll edir:
-        // Chrome-un a=ssrc msid sətirləri Firefox tərəfindən rədd edilir
+        // Firefox bütün a=ssrc sətirləri (cname, msid, label, mslabel) rədd edir
         function cleanSdp(sdp) {
             return sdp.split('\n')
-                .filter(line => !(line.startsWith('a=ssrc:') && line.includes(' msid:')))
+                .filter(line => !line.startsWith('a=ssrc'))
                 .join('\n');
         }
 
