@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Operator;
 
-use App\Events\OperatorAccepted;
 use App\Models\SupportSession;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Polling;
@@ -88,8 +87,6 @@ class Dashboard extends Component
             session()->flash('error', 'Bu zəng artıq başqa operator tərəfindən qəbul edilib.');
             return;
         }
-
-        broadcast(new OperatorAccepted($accepted));
 
         $this->redirect(route('support.video-room', $accepted->uuid));
     }

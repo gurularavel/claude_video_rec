@@ -2,11 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\CallEnded;
-use App\Events\CallStarted;
-use App\Events\CustomerWaiting;
-use App\Events\OperatorAccepted;
-use App\Events\WebRTCSignal;
 use App\Models\Recording;
 use App\Models\SupportSession;
 use Illuminate\Http\JsonResponse;
@@ -59,8 +54,6 @@ class SupportSessionController extends Controller
             'customer_joined_at' => now(),
         ]);
 
-        broadcast(new CustomerWaiting($session));
-
         return response()->json([
             'success'      => true,
             'session_uuid' => $session->uuid,
@@ -68,7 +61,7 @@ class SupportSessionController extends Controller
     }
 
     /**
-     * Operator accepts the call
+     * Operator accepts the call (HTTP route, not used by Livewire dashboard)
      */
     public function accept(SupportSession $session): JsonResponse
     {
@@ -99,8 +92,6 @@ class SupportSessionController extends Controller
             ], 409);
         }
 
-        broadcast(new OperatorAccepted($accepted));
-
         return response()->json([
             'success'      => true,
             'session'      => $accepted,
@@ -109,7 +100,7 @@ class SupportSessionController extends Controller
     }
 
     /**
-     * Start video call — marks started_at and notifies customer
+     * Start video call — marks started_at
      */
     public function startCall(SupportSession $session): JsonResponse
     {
@@ -121,8 +112,6 @@ class SupportSessionController extends Controller
         }
 
         $session->update(['started_at' => now()]);
-
-        broadcast(new CallStarted($session));
 
         return response()->json(['success' => true]);
     }
@@ -139,8 +128,8 @@ class SupportSessionController extends Controller
             'payload' => 'present',
         ]);
 
-        $from    = $request->input('from');
-        $target  = $from === 'operator' ? 'customer' : 'operator';
+        $from     = $request->input('from');
+        $target   = $from === 'operator' ? 'customer' : 'operator';
         $cacheKey = "webrtc.{$session->uuid}.to_{$target}";
 
         $signals   = Cache::get($cacheKey, []);
@@ -160,9 +149,8 @@ class SupportSessionController extends Controller
      */
     public function pollSignals(SupportSession $session, Request $request): JsonResponse
     {
-        $for     = $request->query('for');   // 'operator' or 'customer'
-        $afterId = (int) $request->query('after', 0);
-
+        $for      = $request->query('for');
+        $afterId  = (int) $request->query('after', 0);
         $cacheKey = "webrtc.{$session->uuid}.to_{$for}";
         $signals  = Cache::get($cacheKey, []);
 
@@ -172,7 +160,7 @@ class SupportSessionController extends Controller
     }
 
     /**
-     * End the call — updates session and notifies participants
+     * End the call — updates session and notifies customer via polling signal
      */
     public function endCall(SupportSession $session): JsonResponse
     {
@@ -186,7 +174,6 @@ class SupportSessionController extends Controller
             'duration_seconds' => $duration,
         ]);
 
-        // Notify customer via polling signal
         $cacheKey = "webrtc.{$session->uuid}.to_customer";
         $signals  = Cache::get($cacheKey, []);
         $signals[] = [
@@ -196,8 +183,6 @@ class SupportSessionController extends Controller
             'payload' => null,
         ];
         Cache::put($cacheKey, $signals, 3600);
-
-        broadcast(new CallEnded($session));
 
         return response()->json([
             'success'          => true,
@@ -220,15 +205,15 @@ class SupportSessionController extends Controller
         $path     = $file->storeAs("recordings/{$session->uuid}", $fileName, 'public');
 
         Recording::create([
-            'support_session_id'    => $session->id,
-            'file_name'             => $fileName,
-            'file_path'             => $path,
-            'recording_status'      => 'completed',
-            'duration'              => $request->input('duration'),
-            'size'                  => $file->getSize(),
-            'format'                => 'webm',
-            'recording_started_at'  => $session->started_at,
-            'recording_completed_at'=> now(),
+            'support_session_id'     => $session->id,
+            'file_name'              => $fileName,
+            'file_path'              => $path,
+            'recording_status'       => 'completed',
+            'duration'               => $request->input('duration'),
+            'size'                   => $file->getSize(),
+            'format'                 => 'webm',
+            'recording_started_at'   => $session->started_at,
+            'recording_completed_at' => now(),
         ]);
 
         return response()->json(['success' => true]);
