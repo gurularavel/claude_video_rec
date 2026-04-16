@@ -247,11 +247,37 @@
             return post(`/support/call/${SESSION}/signal`, { from: 'customer', type, payload });
         }
 
-        // Chrome→Firefox SDP uyumsuzluğunu həll edir:
-        // Firefox bütün a=ssrc sətirləri (cname, msid, label, mslabel) rədd edir
+        // Chrome→Firefox SDP uyumsuzluğunu həll edir.
+        // 1) a=ssrc sətirləri (Chrome Plan-B) — Firefox rədd edir
+        // 2) telephone-event (DTMF) codec — Firefox bəzən rədd edir, video üçün lazım deyil
         function cleanSdp(sdp) {
-            return sdp.split('\n')
-                .filter(line => !line.startsWith('a=ssrc'))
+            const lines = sdp.split('\n');
+
+            // telephone-event payload type-larını tap
+            const badPts = new Set();
+            lines.forEach(line => {
+                const m = line.match(/^a=rtpmap:(\d+)\s+telephone-event\//i);
+                if (m) badPts.add(m[1]);
+            });
+
+            return lines
+                .filter(line => {
+                    if (line.startsWith('a=ssrc')) return false;
+                    if (badPts.size) {
+                        for (const pt of badPts) {
+                            if (new RegExp(`^a=(rtpmap|fmtp|rtcp-fb):${pt}[\\s/]`).test(line)) return false;
+                        }
+                    }
+                    return true;
+                })
+                .map(line => {
+                    // m= sətirindən bad PT-ləri çıxart: "m=audio 9 UDP/TLS/RTP/SAVPF 111 126 ..."
+                    if (line.startsWith('m=') && badPts.size) {
+                        const parts = line.split(' ');
+                        return parts.filter((p, i) => i < 3 || !badPts.has(p)).join(' ');
+                    }
+                    return line;
+                })
                 .join('\n');
         }
 
