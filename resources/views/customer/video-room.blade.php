@@ -11,6 +11,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     @vite(['resources/js/app.js'])
+    {{-- Chrome↔Firefox WebRTC uyğunluğunu avtomatik həll edir --}}
+    <script src="https://unpkg.com/webrtc-adapter@9/out/adapter.js"></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -247,34 +249,32 @@
             return post(`/support/call/${SESSION}/signal`, { from: 'customer', type, payload });
         }
 
-        // Chrome→Firefox SDP uyumsuzluğunu həll edir.
-        // 1) a=ssrc sətirləri (Chrome Plan-B) — Firefox rədd edir
-        // 2) telephone-event (DTMF) codec — Firefox bəzən rədd edir, video üçün lazım deyil
+        // Chrome↔Firefox SDP uyğunluğu.
+        // adapter.js əsas işi görür; bu funksiya əlavə qoruma kimi:
+        // — a=ssrc sətirləri (Chrome Plan-B legacy)
+        // — whitelist-dən kənar codec-lər (CN, telephone-event, RED köhnə, vs.)
         function cleanSdp(sdp) {
+            const KEEP = /^(opus|vp8|vp9|h264|av1|rtx|red|ulpfec|flexfec|h265)/i;
             const lines = sdp.split('\n');
 
-            // telephone-event payload type-larını tap
-            const badPts = new Set();
+            // Whitelist-dən kənar PT-ləri tap
+            const removePts = new Set();
             lines.forEach(line => {
-                const m = line.match(/^a=rtpmap:(\d+)\s+telephone-event\//i);
-                if (m) badPts.add(m[1]);
+                const m = line.match(/^a=rtpmap:(\d+)\s+([\w-]+)\//);
+                if (m && !KEEP.test(m[2])) removePts.add(m[1]);
             });
 
             return lines
                 .filter(line => {
                     if (line.startsWith('a=ssrc')) return false;
-                    if (badPts.size) {
-                        for (const pt of badPts) {
-                            if (new RegExp(`^a=(rtpmap|fmtp|rtcp-fb):${pt}[\\s/]`).test(line)) return false;
-                        }
-                    }
+                    const ptM = line.match(/^a=(?:rtpmap|fmtp|rtcp-fb):(\d+)[\s/]/);
+                    if (ptM && removePts.has(ptM[1])) return false;
                     return true;
                 })
                 .map(line => {
-                    // m= sətirindən bad PT-ləri çıxart: "m=audio 9 UDP/TLS/RTP/SAVPF 111 126 ..."
-                    if (line.startsWith('m=') && badPts.size) {
-                        const parts = line.split(' ');
-                        return parts.filter((p, i) => i < 3 || !badPts.has(p)).join(' ');
+                    if (line.startsWith('m=') && removePts.size) {
+                        const parts = line.trim().split(/\s+/);
+                        return [...parts.slice(0, 3), ...parts.slice(3).filter(p => !removePts.has(p))].join(' ');
                     }
                     return line;
                 })
