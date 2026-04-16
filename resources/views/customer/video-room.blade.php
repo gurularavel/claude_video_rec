@@ -213,6 +213,9 @@
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
             ]
         };
 
@@ -248,10 +251,16 @@
             pc = new RTCPeerConnection(ICE_CFG);
 
             pc.onicecandidate = e => {
-                if (e.candidate) sendSignal('ice-candidate', e.candidate.toJSON());
+                if (e.candidate) {
+                    console.log('[MÜŞTƏRİ] ICE candidate:', e.candidate.type, e.candidate.protocol);
+                    sendSignal('ice-candidate', e.candidate.toJSON());
+                } else {
+                    console.log('[MÜŞTƏRİ] ICE gathering complete');
+                }
             };
 
             pc.ontrack = e => {
+                console.log('[MÜŞTƏRİ] ontrack:', e.track.kind, e.streams.length);
                 if (e.streams && e.streams[0]) {
                     remoteVideo.srcObject = e.streams[0];
                 } else {
@@ -261,11 +270,23 @@
                 setStatus('connected', 'Bağlantı quruldu');
             };
 
+            pc.oniceconnectionstatechange = () => {
+                console.log('[MÜŞTƏRİ] ICE state:', pc.iceConnectionState);
+                if (pc.iceConnectionState === 'failed') {
+                    setStatus('ended', 'ICE bağlantı uğursuz — TURN server lazımdır');
+                } else if (pc.iceConnectionState === 'checking') {
+                    setStatus('connecting', 'ICE yoxlanılır...');
+                } else if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+                    setStatus('connected', 'Bağlantı quruldu');
+                }
+            };
+
             pc.onconnectionstatechange = () => {
+                console.log('[MÜŞTƏRİ] Connection state:', pc.connectionState);
                 if (pc.connectionState === 'connected') {
                     setStatus('connected', 'Bağlantı quruldu');
-                } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-                    setStatus('ended', 'Zəng bitdi');
+                } else if (pc.connectionState === 'failed') {
+                    setStatus('ended', 'Bağlantı uğursuz');
                     setTimeout(() => window.close(), 3000);
                 }
             };
