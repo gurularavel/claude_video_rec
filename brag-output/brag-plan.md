@@ -12,7 +12,20 @@
 - **Tone:** `app-store` — clean, smooth, confident; white + brand indigo (#4f46e5), Inter.
 - **Share caption:** "Redhopper: öz PDF-lərinizdən 24/7 cavab verən AI canlı çat. Cavab tapmasa — dərhal operatora."
 
-## Storyboard (20.0s, 1920×1080, 30fps)
+## Storyboard v2 (33.6s, 1920×1080, 30fps)
+
+v2 adds, on request: charts (dashboard), SLA monitoring, and the three pricing packages. Dashboard and SLA screens are built in the site's design language with **illustrative demo data** (the real demo dashboard was unreachable from the sandbox); pricing is the real data from redhopper.co/pricing.
+
+| # | Time | Scene |
+|---|---|---|
+| 1–3 | 0.0–11.5 | Hook, AI answer from PDF, operator handoff (unchanged) |
+| 4 Charts | 11.55–16.1 | "Hər söhbət — qrafiklərdə." KPI tiles count up, daily conversations line chart (AI vs operator) draws, donut 85% AI |
+| 5 SLA | 16.1–20.4 | Sidebar moves to SLA. Target rings (≤30 san / ≤2 dəq / ≤15 dəq), operator table with SLA bars, alert "SLA-ya 20 san qalıb" → auto-reassigned |
+| 6 Setup | 20.45–24.9 | Three steps + embed snippet (unchanged) |
+| 7 Packages | 24.95–29.5 | Başlanğıc 29 ₼ / Biznes 49 ₼ (highlighted) / Korporativ 99 ₼; prices count up, SLA row in Korporativ lights up |
+| 8 Outro | 29.52–33.6 | Logo, CTA click at 31.52 |
+
+## Storyboard v1 (20.0s)
 | # | Time | Left (copy) | Right / visual | SFX |
 |---|---|---|---|---|
 | 1 Hook | 0.0–3.0 | "03:12" chip → "Müştəri sual verir. Siz yatırsınız." | Widget pops in; visitor types "Çatdırılma neçə gün çəkir?" | soft pop on send |
