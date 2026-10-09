@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="az">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="inter.css">
+<style>
+  :root {
+    --brand-50:#eef2ff; --brand-100:#e0e7ff; --brand-500:#6366f1; --brand-600:#4f46e5; --brand-700:#4338ca;
+    --zinc-50:#fafafa; --zinc-100:#f4f4f5; --zinc-200:#e4e4e7; --zinc-400:#9f9fa9; --zinc-500:#71717b; --zinc-600:#52525c; --zinc-900:#18181b;
+    --maroon:#410a11; --maroon-2:#74141f; --emerald:#00bb7f;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { width:1920px; height:1080px; overflow:hidden; background:#fff; }
+  body { font-family:Inter, sans-serif; color:var(--zinc-900); -webkit-font-smoothing:antialiased; }
+  #stage { position:absolute; inset:0; overflow:hidden; background:#fff; }
+  .glow { position:absolute; border-radius:50%; filter:blur(90px); pointer-events:none; }
+  .abs { position:absolute; }
+  .will { will-change:transform,opacity; }
+
+  /* left copy */
+  .cap { position:absolute; left:200px; top:0; width:820px; height:1080px; display:flex; flex-direction:column; justify-content:center; }
+  .cap h1 { font-size:84px; line-height:1.04; letter-spacing:-0.035em; font-weight:700; }
+  .cap h1 .acc { color:var(--brand-600); }
+  .cap p { margin-top:28px; font-size:34px; line-height:1.4; color:var(--zinc-600); max-width:720px; }
+  .chip { display:inline-flex; align-items:center; gap:14px; align-self:flex-start; padding:12px 22px; border-radius:999px; background:var(--zinc-900); color:#fff; font-size:30px; font-weight:600; margin-bottom:34px; font-variant-numeric:tabular-nums; }
+  .chip .dot { width:12px; height:12px; border-radius:50%; background:#a5b4fc; }
+
+  /* widget (from redhopper.co hero) */
+  #widget { position:absolute; left:1150px; top:150px; width:580px; height:780px; border-radius:28px; background:#fff; border:1.5px solid var(--zinc-200);
+    box-shadow:0 40px 90px -20px rgba(67,56,202,.28), 0 12px 30px -10px rgba(24,24,27,.12); overflow:hidden; display:flex; flex-direction:column; }
+  .w-head { height:112px; background:var(--brand-600); color:#fff; display:flex; align-items:center; gap:20px; padding:0 30px; flex:none; }
+  .w-av { position:relative; width:58px; height:58px; border-radius:50%; background:#818cf8; flex:none; }
+  .w-av .op { position:absolute; inset:0; border-radius:50%; background:#fff; color:var(--brand-600); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:24px; }
+  .w-av .on { position:absolute; right:-2px; bottom:-2px; width:18px; height:18px; border-radius:50%; background:var(--emerald); border:3px solid var(--brand-600); }
+  .w-name { font-size:28px; font-weight:600; line-height:1.15; }
+  .w-sub { position:relative; height:26px; font-size:21px; opacity:.85; }
+  .w-sub span { position:absolute; left:0; top:0; white-space:nowrap; }
+  .w-body { flex:1; position:relative; overflow:hidden; background:#fff; }
+  #msgs { position:absolute; left:0; right:0; bottom:0; padding:0 26px 22px; display:flex; flex-direction:column; }
+  .m { overflow:hidden; flex:none; }
+  .m > .in { padding-top:18px; display:flex; }
+  .m.me > .in { justify-content:flex-end; }
+  .m.center > .in { justify-content:center; }
+  .b { max-width:420px; font-size:25px; line-height:1.42; padding:16px 22px; border-radius:20px; }
+  .me .b { background:var(--brand-600); color:#fff; }
+  .ai .b { background:#fff; border:1.5px solid var(--zinc-200); color:var(--zinc-900); }
+  .op .b { background:var(--zinc-100); color:var(--zinc-900); }
+  .wave { font-size:28px; padding:12px 18px !important; }
+  .src { font-size:20px; color:var(--zinc-400); display:inline-flex; align-items:center; gap:8px; padding:6px 14px; border-radius:999px; }
+  .pill { font-size:21px; font-weight:600; color:var(--brand-700); background:var(--brand-50); border:1.5px solid var(--brand-100); padding:10px 20px; border-radius:999px; display:inline-flex; align-items:center; gap:10px; }
+  .who { font-size:18px; color:var(--zinc-500); margin:0 0 6px 4px; font-weight:500; }
+  .dots { display:flex; gap:8px; padding:20px 22px; }
+  .dots i { width:12px; height:12px; border-radius:50%; background:var(--zinc-400); display:block; }
+  .w-input { flex:none; height:92px; border-top:1.5px solid var(--zinc-200); display:flex; align-items:center; gap:16px; padding:0 22px 0 30px; }
+  .w-field { flex:1; font-size:24px; color:var(--zinc-900); white-space:nowrap; overflow:hidden; }
+  .w-field .ph { color:var(--zinc-400); }
+  .caret { display:inline-block; width:2px; height:28px; background:var(--brand-600); vertical-align:-5px; margin-left:2px; }
+  .send { width:54px; height:54px; border-radius:14px; background:var(--brand-600); display:flex; align-items:center; justify-content:center; }
+
+  /* steps */
+  #steps { position:absolute; inset:0; }
+  .st-title { position:absolute; left:0; right:0; top:150px; text-align:center; font-size:76px; font-weight:700; letter-spacing:-0.035em; }
+  .cards { position:absolute; left:200px; right:200px; top:330px; display:flex; gap:40px; }
+  .card { flex:1; height:330px; background:#fff; border:1.5px solid var(--zinc-200); border-radius:26px; padding:44px 40px; box-shadow:0 20px 50px -24px rgba(67,56,202,.25); }
+  .num { width:64px; height:64px; border-radius:50%; background:var(--brand-600); color:#fff; display:flex; align-items:center; justify-content:center; font-size:30px; font-weight:600; }
+  .card h3 { margin-top:30px; font-size:40px; font-weight:650; letter-spacing:-0.02em; }
+  .card p { margin-top:14px; font-size:26px; line-height:1.4; color:var(--zinc-600); }
+  .keys { margin-top:20px; display:flex; gap:12px; }
+  .key { font-size:23px; font-weight:600; padding:8px 16px; border-radius:12px; background:var(--brand-50); color:var(--brand-700); border:1.5px solid var(--brand-100); }
+  .code { position:absolute; left:50%; top:740px; width:1360px; margin-left:-680px; height:104px; background:var(--zinc-900); border-radius:20px; color:#e4e4e7; font-family:ui-monospace, "DejaVu Sans Mono", Menlo, monospace; font-size:25px; display:flex; align-items:center; padding:0 40px; white-space:pre; }
+  .code .t { color:#a5b4fc; } .code .a { color:#fda4af; } .code .s { color:#86efac; }
+
+  /* outro */
+  #outro { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .lockup { display:flex; align-items:center; gap:34px; }
+  .lockup img { height:190px; }
+  .word { font-size:150px; letter-spacing:-0.045em; color:var(--maroon); line-height:1; }
+  .word b { font-weight:800; } .word span { font-weight:400; }
+  .tag { margin-top:46px; font-size:46px; font-weight:600; letter-spacing:-0.02em; color:var(--zinc-900); }
+  .cta { margin-top:56px; display:flex; flex-direction:column; align-items:center; }
+  .btn { position:relative; font-size:36px; font-weight:600; color:#fff; background:var(--brand-600); padding:26px 52px; border-radius:18px; box-shadow:0 18px 40px -14px rgba(79,70,229,.6); overflow:hidden; }
+  .ripple { position:absolute; width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,.45); left:50%; top:50%; margin:-20px 0 0 -20px; }
+  .fine { margin-top:26px; font-size:28px; color:var(--zinc-500); }
+  .url { margin-top:14px; font-size:34px; font-weight:700; color:var(--brand-600); letter-spacing:-0.01em; }
+  #cursor { position:absolute; left:0; top:0; width:46px; height:46px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="glow" id="g1" style="width:900px;height:900px;background:rgba(99,102,241,.16)"></div>
+  <div class="glow" id="g2" style="width:700px;height:700px;background:rgba(116,20,31,.07)"></div>
+
+  <!-- left captions -->
+  <div class="cap will" id="c1">
+    <div class="chip"><span class="dot"></span><span id="clock">03:12</span></div>
+    <h1>Müştəri sual verir.<br><span class="acc">Siz yatırsınız.</span></h1>
+  </div>
+  <div class="cap will" id="c2">
+    <h1>Redhopper cavab verir —<br><span class="acc" style="white-space:nowrap">öz PDF-lərinizdən.</span></h1>
+    <p>Mənbə göstərərək, 24/7.</p>
+  </div>
+  <div class="cap will" id="c3">
+    <h1>Cavab tapmadıqda — <span class="acc">dərhal canlı operatora.</span></h1>
+    <p>Söhbət real vaxtda ötürülür.</p>
+  </div>
+
+  <!-- chat widget -->
+  <div id="widget" class="will">
+    <div class="w-head">
+      <div class="w-av"><div class="op" id="avOp">A</div><div class="on" id="avOn"></div></div>
+      <div>
+        <div class="w-name">Redhopper</div>
+        <div class="w-sub"><span id="subAi">AI</span><span id="subOp">Operator · onlayn</span></div>
+      </div>
+    </div>
+    <div class="w-body">
+      <div id="msgs">
+        <div class="m ai" data-k="wave"><div class="in"><div class="b wave">👋</div></div></div>
+        <div class="m me" data-k="q1"><div class="in"><div class="b">Çatdırılma neçə gün çəkir?</div></div></div>
+        <div class="m ai" data-k="dots1"><div class="in"><div class="b dots"><i></i><i></i><i></i></div></div></div>
+        <div class="m ai" data-k="a1"><div class="in"><div class="b">Bakı daxilində 1–2 iş günü, regionlara 3–5 iş günü.</div></div></div>
+        <div class="m center" data-k="src"><div class="in"><span class="src" id="srcChip">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+          PDF · p.3</span></div></div>
+        <div class="m me" data-k="q2"><div class="in"><div class="b">Sifarişimi başqa ünvana göndərmək olar?</div></div></div>
+        <div class="m center" data-k="hand"><div class="in"><span class="pill">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Operatora ötürülür…</span></div></div>
+        <div class="m op" data-k="a2"><div class="in"><div><div class="who">Operator</div><div class="b">Əlbəttə! Yeni ünvanı yazın, dəyişək 🙂</div></div></div></div>
+      </div>
+    </div>
+    <div class="w-input">
+      <div class="w-field" id="field"></div>
+      <div class="send"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></div>
+    </div>
+  </div>
+
+  <!-- steps -->
+  <div id="steps">
+    <div class="st-title will" id="stT">Üç addımda hazır</div>
+    <div class="cards">
+      <div class="card will" id="k1"><div class="num">1</div><h3>PDF yükləyin</h3><p>Qiymət siyahıları, FAQ, qaydalar — avtomatik indekslənir.</p></div>
+      <div class="card will" id="k2"><div class="num">2</div><h3>AI açarı əlavə edin</h3><div class="keys"><span class="key">OpenAI</span><span class="key">Claude</span><span class="key">Gemini</span></div><p>Şifrələnmiş saxlanılır.</p></div>
+      <div class="card will" id="k3"><div class="num">3</div><h3>Kodu yerləşdirin</h3><p>Embed kodunu saytınıza əlavə edin — hazırdır.</p></div>
+    </div>
+    <div class="code will" id="code"><span id="codeTxt"></span><span class="caret" id="codeCaret" style="background:#a5b4fc"></span></div>
+  </div>
+
+  <!-- outro -->
+  <div id="outro">
+    <div class="lockup will" id="lock"><img src="icon.png" alt=""><div class="word"><b>Red</b><span>hopper</span></div></div>
+    <div class="tag will" id="tag">Öz sənədlərinizdən cavab verən AI canlı çat</div>
+    <div class="cta will" id="cta">
+      <div class="btn" id="btn">Pulsuz sınağa başla<div class="ripple" id="rip"></div></div>
+      <div class="fine">14 gün pulsuz · kart tələb olunmur</div>
+      <div class="url">redhopper.co</div>
+    </div>
+  </div>
+
+  <svg id="cursor" viewBox="0 0 24 24"><path d="M4 2.5 19.5 12l-6.6 1.6 3.9 7.2-2.9 1.5-3.9-7.2L5 19.6Z" fill="#18181b" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const P = (t, a, b) => clamp((t - a) / (b - a));
+const eOut = x => 1 - Math.pow(1 - x, 3);
+const eInOut = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const eBack = x => { const c = 1.6; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const lerp = (a, b, x) => a + (b - a) * x;
+// in/out envelope: fade+rise in at [a, a+d], out at [b, b+d2]
+function env(t, a, b, d = .5, d2 = .35) { return eOut(P(t, a, a + d)) * (1 - eInOut(P(t, b, b + d2))); }
+
+const T = {
+  widgetIn: .15, type1: [.75, 2.05], send1: 2.25, dots1: 2.75, a1: 3.55, src: 4.75,
+  type2: [6.9, 8.25], send2: 8.45, hand: 9.05, opSwap: 9.5, a2: 10.05, widgetOut: 11.15,
+  steps: 11.55, k: [11.95, 12.45, 12.95], code: [13.55, 14.95], stepsOut: 15.65,
+  outro: 16.02, tag: 16.5, cta: 16.9, click: 17.52, end: 20.0
+};
+const Q1 = 'Çatdırılma neçə gün çəkir?';
+const Q2 = 'Sifarişimi başqa ünvana göndərmək olar?';
+const CODE = '<script src="https://…/widget/loader.js" data-key="…" async><\/script>';
+
+// measure message heights once
+const msgs = [...document.querySelectorAll('.m')];
+const H = {}; msgs.forEach(m => { H[m.dataset.k] = m.firstElementChild.offsetHeight; });
+const M = k => msgs.find(m => m.dataset.k === k);
+function msg(k, t, tin, tout = 1e9) {
+  const el = M(k), pin = eOut(P(t, tin, tin + .38)), pout = eInOut(P(t, tout, tout + .3));
+  const h = H[k] * pin * (1 - pout);
+  el.style.height = h + 'px';
+  const inner = el.firstElementChild;
+  const s = lerp(.85, 1, eBack(P(t, tin, tin + .45)));
+  inner.style.opacity = pin * (1 - pout);
+  const origin = el.classList.contains('me') ? 'right bottom' : el.classList.contains('center') ? 'center bottom' : 'left bottom';
+  inner.style.transformOrigin = origin; inner.style.transform = `scale(${s})`;
+}
+// syntax colouring done per character so partially typed text keeps its colours
+const CODE_CLS = (() => {
+  const c = Array(CODE.length).fill('');
+  const mark = (re, cls) => { let m; while ((m = re.exec(CODE))) for (let i = m.index; i < m.index + m[0].length; i++) c[i] = cls; };
+  mark(/<\/?script|>/g, 't'); mark(/ (src|data-key|async)/g, 'a'); mark(/"[^"]*"/g, 's');
+  return c;
+})();
+const esc = ch => ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch === '&' ? '&amp;' : ch;
+function codeHtml(n) {
+  let out = '', cur = null;
+  for (let i = 0; i < n; i++) {
+    const k = CODE_CLS[i];
+    if (k !== cur) { if (cur) out += '</span>'; if (k) out += `<span class="${k}">`; cur = k; }
+    out += esc(CODE[i]);
+  }
+  return out + (cur ? '</span>' : '');
+}
+
+window.render = function (t) {
+  // background glows drift
+  $('g1').style.transform = `translate(${1050 + 80 * Math.sin(t * .35)}px, ${-260 + 60 * Math.cos(t * .28)}px)`;
+  $('g2').style.transform = `translate(${-200 + 60 * Math.cos(t * .3)}px, ${620 + 50 * Math.sin(t * .4)}px)`;
+
+  // captions
+  const caps = [['c1', .25, 2.85], ['c2', 3.15, 6.65], ['c3', 7.0, 10.95]];
+  caps.forEach(([id, a, b]) => {
+    const e = env(t, a, b, .55, .3), up = (1 - eOut(P(t, a, a + .55))) * 40 + eInOut(P(t, b, b + .3)) * -24;
+    $(id).style.opacity = e; $(id).style.transform = `translateY(${up}px)`;
+  });
+  // ticking clock in hook
+  $('clock').textContent = t < 1.6 ? '03:12' : '03:13';
+
+  // widget
+  const wi = eBack(P(t, T.widgetIn, T.widgetIn + .6)), wo = eInOut(P(t, T.widgetOut, T.widgetOut + .45));
+  $('widget').style.opacity = clamp(P(t, T.widgetIn, T.widgetIn + .3)) * (1 - wo);
+  $('widget').style.transform = `translate(${wo * 140}px, ${(1 - wi) * 70}px) scale(${lerp(.92, 1, wi)})`;
+  // header swaps AI -> operator
+  const sw = eInOut(P(t, T.opSwap, T.opSwap + .4));
+  $('avOp').style.opacity = sw; $('avOn').style.opacity = sw;
+  $('subAi').style.opacity = 1 - sw; $('subAi').style.transform = `translateY(${-sw * 14}px)`;
+  $('subOp').style.opacity = sw; $('subOp').style.transform = `translateY(${(1 - sw) * 14}px)`;
+
+  // messages
+  msg('wave', t, .2);
+  msg('q1', t, T.send1);
+  msg('dots1', t, T.dots1, T.a1 - .3);
+  msg('a1', t, T.a1);
+  msg('src', t, T.src);
+  msg('q2', t, T.send2);
+  msg('hand', t, T.hand);
+  msg('a2', t, T.a2);
+  // typing dots bounce
+  M('dots1').querySelectorAll('i').forEach((d, i) => { d.style.transform = `translateY(${-6 * Math.max(0, Math.sin((t * 7) - i * .9))}px)`; });
+  // source chip highlight
+  const sp = P(t, T.src + .15, T.src + .9);
+  const chip = $('srcChip');
+  chip.style.background = `rgba(238,242,255,${Math.sin(sp * Math.PI) * .9 + (sp >= 1 ? .9 : 0) * 0})`;
+  chip.style.color = sp > 0 && sp < 1 ? '#4338ca' : (sp >= 1 ? '#6366f1' : '#9f9fa9');
+  if (sp >= 1) chip.style.background = 'rgba(238,242,255,.9)';
+
+  // input field typing
+  let field = '<span class="ph">Mesajınızı yazın…</span>';
+  const typed = (s, a, b) => s.slice(0, Math.round(s.length * P(t, a, b)));
+  const caretOn = Math.floor(t * 2.4) % 2 === 0;
+  if (t >= T.type1[0] && t < T.send1) field = typed(Q1, ...T.type1) + `<span class="caret" style="opacity:${caretOn || t < T.type1[1] ? 1 : 0}"></span>`;
+  else if (t >= T.type2[0] && t < T.send2) field = typed(Q2, ...T.type2) + `<span class="caret" style="opacity:${caretOn || t < T.type2[1] ? 1 : 0}"></span>`;
+  $('field').innerHTML = field;
+
+  // steps
+  const so = eInOut(P(t, T.stepsOut, T.stepsOut + .35));
+  $('steps').style.opacity = 1 - so;
+  $('stT').style.opacity = eOut(P(t, T.steps, T.steps + .5));
+  $('stT').style.transform = `translateY(${(1 - eOut(P(t, T.steps, T.steps + .5))) * 36}px)`;
+  T.k.forEach((a, i) => {
+    const p = eBack(P(t, a, a + .55));
+    const el = $('k' + (i + 1));
+    el.style.opacity = clamp(P(t, a, a + .25));
+    el.style.transform = `translateY(${(1 - p) * 90}px)`;
+  });
+  const cp = P(t, T.code[0] - .35, T.code[0]);
+  $('code').style.opacity = eOut(cp);
+  $('code').style.transform = `translateY(${(1 - eOut(cp)) * 30}px)`;
+  $('codeTxt').innerHTML = codeHtml(Math.round(CODE.length * P(t, ...T.code)));
+  $('codeCaret').style.opacity = (t < T.code[1] || caretOn) ? 1 : 0;
+
+  // outro
+  const lo = eBack(P(t, T.outro, T.outro + .7));
+  $('lock').style.opacity = clamp(P(t, T.outro, T.outro + .3));
+  $('lock').style.transform = `scale(${lerp(.8, 1, lo)})`;
+  [['tag', T.tag], ['cta', T.cta]].forEach(([id, a]) => {
+    const p = eOut(P(t, a, a + .55));
+    $(id).style.opacity = p; $(id).style.transform = `translateY(${(1 - p) * 34}px)`;
+  });
+  // cursor travels to the button and clicks
+  const cIn = P(t, T.click - .8, T.click - .1), cv = clamp(P(t, T.click - .9, T.click - .7)) * (1 - P(t, T.click + 1.2, T.click + 1.5));
+  const bx = 1000, by = 668;
+  const cx = lerp(1500, bx, eInOut(cIn)), cy = lerp(1020, by, eInOut(cIn));
+  const press = Math.sin(Math.PI * P(t, T.click - .06, T.click + .14));
+  $('cursor').style.opacity = t > T.outro ? cv : 0;
+  $('cursor').style.transform = `translate(${cx}px, ${cy}px) scale(${1 - .12 * press})`;
+  $('btn').style.transform = `scale(${1 - .045 * press})`;
+  const rp = P(t, T.click, T.click + .6);
+  $('rip').style.opacity = rp > 0 ? (1 - rp) : 0;
+  $('rip').style.transform = `scale(${1 + rp * 14})`;
+
+  // global fade out at the very end
+  $('stage').style.opacity = 1 - eInOut(P(t, T.end - .45, T.end));
+  // visibility of whole scenes to avoid stray paint
+  $('steps').style.visibility = t > T.steps - .05 && t < T.stepsOut + .4 ? 'visible' : 'hidden';
+  $('outro').style.visibility = t > T.outro - .05 ? 'visible' : 'hidden';
+};
+window.ready = Promise.all([document.fonts.ready, ...[...document.images].map(i => i.complete ? 1 : new Promise(r => i.onload = r))]);
+render(0);
+</script>
+</body>
+</html>
