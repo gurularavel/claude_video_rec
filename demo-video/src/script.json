@@ -1,0 +1,47 @@
+[
+  {
+    "id": "intro",
+    "caption": "Redhopper — öz sənədlərinizdən cavab verən AI canlı çat.",
+    "tts": "Red hopper ilə tanış olun. Öz sənədlərinizdən cavab verən, süni intellektli canlı çat."
+  },
+  {
+    "id": "hero",
+    "caption": "PDF-lərinizi yükləyin, saytınıza bir sətir kod əlavə edin — AI müştəri suallarını 24/7 cavablandırsın.",
+    "tts": "Pe de ef fayllarınızı yükləyin, saytınıza bir sətir kod əlavə edin, və süni intellekt müştəri suallarını gecə-gündüz cavablandırsın. Cavab tapılmadıqda, söhbət dərhal canlı operatora ötürülür."
+  },
+  {
+    "id": "how",
+    "caption": "Üç addımda hazır: PDF yükləyin → AI açarı əlavə edin → kodu yerləşdirin.",
+    "tts": "Başlamaq üçün cəmi üç addım kifayətdir. Əvvəlcə qiymət siyahıları və qaydalar kimi sənədlərinizi yükləyin. Sonra Open Ey Ay, Klod və ya Cemini açarınızı əlavə edin. Və nəhayət, kodu saytınıza yerləşdirin."
+  },
+  {
+    "id": "features",
+    "caption": "PDF-lərdən cavablar, operatora ötürmə, öz AI açarlarınız, çoxdilli dəstək.",
+    "tts": "Red hopper müasir dəstək üçün lazım olan hər şeyi verir. Mənbə göstərərək sənədlərdən cavablar, operatora ötürmə, öz açarlarınız, bir sətirlə quraşdırma və çoxdilli dəstək."
+  },
+  {
+    "id": "channels",
+    "caption": "Vebsayt, WhatsApp, Telegram, Instagram və Messenger — hamısı bir yerdə.",
+    "tts": "Müştərilərinizə olduqları kanallarda cavab verin. Vebsayt, Vatsap, Teleqram, İnstaqram və Mesencer. Modeli siz seçirsiniz, açarlar isə şifrələnmiş saxlanılır."
+  },
+  {
+    "id": "pricing",
+    "caption": "Sadə qiymətlər — operator başına. 14 gün pulsuz sınaq, 29 ₼-dan başlayan paketlər.",
+    "tts": "Qiymətlər sadədir və operator başına hesablanır. On dörd günlük pulsuz sınaqdan sonra, Başlanğıc, Biznes və Korporativ paketlərindən birini seçin. Qiymətlər ayda iyirmi doqquz manatdan başlayır."
+  },
+  {
+    "id": "faq",
+    "caption": "AI cavab tapmasa? Söhbət real vaxtda onlayn operatora ötürülür.",
+    "tts": "Bəs süni intellekt cavab tapmasa nə olur? Söhbət real vaxtda onlayn operatora ötürülür, və operator paneldən cavab verir. Müştəri yenidən başlamalı olmur."
+  },
+  {
+    "id": "login",
+    "caption": "Operator girişi: demo@chat.test",
+    "tts": "İndi operator panelinə keçək. Operator giriş səhifəsində email ünvanını və şifrəsini yazır, və Daxil ol düyməsini sıxır. Ötürülmüş söhbətlərə operator məhz bu paneldən cavab verir."
+  },
+  {
+    "id": "outro",
+    "caption": "14 gün pulsuz · kart tələb olunmur · redhopper.co",
+    "tts": "Red hopper. On dörd gün pulsuz, kart tələb olunmur. Saytınıza süni intellektli canlı çatı bu gün qoşun."
+  }
+]
